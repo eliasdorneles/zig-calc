@@ -1,24 +1,42 @@
 const std = @import("std");
 
-pub fn main() !void {
-    // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
-    std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
+const Calculator = @import("calculator.zig");
 
-    // stdout is for the actual output of your application, for example if you
-    // are implementing gzip, then only the compressed bytes should be sent to
-    // stdout, not any debugging messages.
-    const stdout_file = std.io.getStdOut().writer();
-    var bw = std.io.bufferedWriter(stdout_file);
-    const stdout = bw.writer();
+fn prompt(text: []const u8, line: *std.ArrayList(u8)) ![]u8 {
+    const stdout = std.io.getStdOut().writer();
+    try stdout.print("{s}", .{text});
 
-    try stdout.print("Run `zig build test` to run the tests.\n", .{});
-
-    try bw.flush(); // don't forget to flush!
+    const stdin = std.io.getStdIn().reader();
+    const line_writer = line.writer();
+    try stdin.streamUntilDelimiter(line_writer, '\n', null);
+    return line.items;
 }
 
-test "simple test" {
-    var list = std.ArrayList(i32).init(std.testing.allocator);
-    defer list.deinit(); // try commenting this out and see if zig detects the memory leak!
-    try list.append(42);
-    try std.testing.expectEqual(@as(i32, 42), list.pop());
+pub fn main() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const stdout = std.io.getStdOut().writer();
+
+    var line = std.ArrayList(u8).init(allocator);
+    defer line.deinit();
+
+    var calc = Calculator.init(allocator);
+    defer calc.deinit();
+
+    while (prompt("calc % ", &line)) |expr| {
+        defer line.clearRetainingCapacity();
+
+        const result = calc.eval(expr) catch |err| {
+            try stdout.print("Error: {}\n", .{err});
+            continue;
+        };
+        try stdout.print("{d}\n", .{result});
+    } else |err| {
+        try switch (err) {
+            error.EndOfStream => stdout.print("Bye\n", .{}),
+            else => stdout.print("Error: {}\n", .{err}),
+        };
+    }
 }
