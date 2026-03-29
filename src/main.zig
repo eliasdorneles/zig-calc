@@ -2,14 +2,14 @@ const std = @import("std");
 
 const Calculator = @import("calculator.zig");
 
-fn prompt(text: []const u8, line: *std.ArrayList(u8)) ![]u8 {
-    const stdout = std.io.getStdOut().writer();
+fn prompt(
+    stdin: *std.Io.Reader,
+    stdout: *std.Io.Writer,
+    text: []const u8,
+) ![]u8 {
     try stdout.print("{s}", .{text});
-
-    const stdin = std.io.getStdIn().reader();
-    const line_writer = line.writer();
-    try stdin.streamUntilDelimiter(line_writer, '\n', null);
-    return line.items;
+    try stdout.flush();
+    return stdin.takeDelimiterExclusive('\n');
 }
 
 pub fn main() !void {
@@ -17,17 +17,18 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    const stdout = std.io.getStdOut().writer();
+    var stdin_buffer: [1024]u8 = undefined;
+    var stdin_reader_wrapper = std.fs.File.stdin().reader(&stdin_buffer);
+    const stdin: *std.Io.Reader = &stdin_reader_wrapper.interface;
 
-    var line = std.ArrayList(u8).init(allocator);
-    defer line.deinit();
+    var stdout_buffer: [1024]u8 = undefined;
+    var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
+    const stdout = &stdout_writer.interface;
 
     var calc = Calculator.init(allocator);
     defer calc.deinit();
 
-    while (prompt("calc % ", &line)) |expr| {
-        defer line.clearRetainingCapacity();
-
+    while (prompt(stdin, stdout, "calc % ")) |expr| {
         const result = calc.eval(expr) catch |err| {
             try stdout.print("Error: {}\n", .{err});
             continue;
@@ -39,4 +40,5 @@ pub fn main() !void {
             else => stdout.print("Error: {}\n", .{err}),
         };
     }
+    try stdout.flush();
 }

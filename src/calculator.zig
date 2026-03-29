@@ -31,8 +31,8 @@ pub fn deinit(self: *Calculator) void {
 }
 
 fn evalPostfix(self: *Calculator, tokens: [][]const u8) !f128 {
-    var stack = std.ArrayList(f128).init(self.allocator);
-    defer stack.deinit();
+    var stack: std.ArrayListUnmanaged(f128) = .empty;
+    defer stack.deinit(self.allocator);
 
     for (tokens) |token| {
         if (mem.eql(u8, token, "")) continue;
@@ -41,24 +41,24 @@ fn evalPostfix(self: *Calculator, tokens: [][]const u8) !f128 {
             if (stack.items.len < 2) {
                 return error.InvalidInput;
             }
-            const b = stack.pop();
-            const a = stack.pop();
+            const b = stack.pop().?;
+            const a = stack.pop().?;
             _ = switch (token.ptr[0]) {
-                '+' => try stack.append(a + b),
-                '-' => try stack.append(a - b),
-                '*' => try stack.append(a * b),
-                '/' => try stack.append(a / b),
+                '+' => try stack.append(self.allocator, a + b),
+                '-' => try stack.append(self.allocator, a - b),
+                '*' => try stack.append(self.allocator, a * b),
+                '/' => try stack.append(self.allocator, a / b),
                 else => return error.NotImplemented,
             };
         } else {
             const value = try std.fmt.parseFloat(f128, token);
-            try stack.append(value);
+            try stack.append(self.allocator, value);
         }
     }
     if (stack.items.len != 1) {
         return error.InvalidInput;
     }
-    return stack.pop();
+    return stack.pop().?;
 }
 
 fn peek(stack: std.ArrayList([]const u8)) []const u8 {
@@ -68,11 +68,11 @@ fn peek(stack: std.ArrayList([]const u8)) []const u8 {
 pub fn eval(self: *Calculator, expr: []const u8) !f128 {
     // Here we use the shunting-yard algorithm to convert the infix expression
     // to postfix notation. We then evaluate the postfix expression.
-    var stack = std.ArrayList([]const u8).init(self.allocator);
-    defer stack.deinit();
+    var stack: std.ArrayListUnmanaged([]const u8) = .empty;
+    defer stack.deinit(self.allocator);
 
-    var postfix = std.ArrayList([]const u8).init(self.allocator);
-    defer postfix.deinit();
+    var postfix: std.ArrayListUnmanaged([]const u8) = .empty;
+    defer postfix.deinit(self.allocator);
 
     var it = Tokenizer.init(expr);
     while (it.next()) |token| {
@@ -82,33 +82,33 @@ pub fn eval(self: *Calculator, expr: []const u8) !f128 {
             while (stack.items.len > 0) {
                 const top = peek(stack);
                 if (isOperator(top[0]) and precedence(token[0]) <= precedence(top[0])) {
-                    try postfix.append(stack.pop());
+                    try postfix.append(self.allocator, stack.pop().?);
                 } else {
                     break;
                 }
             }
-            try stack.append(token);
+            try stack.append(self.allocator, token);
         } else if (token[0] == '(') {
-            try stack.append(token);
+            try stack.append(self.allocator, token);
         } else if (token[0] == ')') {
             while (stack.items.len > 0) {
                 const top = peek(stack);
                 if (top[0] == '(') break;
-                try postfix.append(stack.pop());
+                try postfix.append(self.allocator, stack.pop().?);
             }
             if (stack.items.len == 0) {
                 return error.UnbalancedParentheses;
             }
             _ = stack.pop(); // pop '('
         } else {
-            try postfix.append(token);
+            try postfix.append(self.allocator, token);
         }
     }
 
     while (stack.items.len > 0) {
-        const token = stack.pop();
+        const token = stack.pop().?;
         if (token[0] == '(') return error.UnbalancedParentheses;
-        try postfix.append(token);
+        try postfix.append(self.allocator, token);
     }
 
     // log.debug("postfix: {s}", .{postfix.items});

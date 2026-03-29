@@ -16,7 +16,7 @@ pub fn isOperator(c: u8) bool {
 
 pub fn isName(token: []const u8) bool {
     if (token.len == 0) return false;
-    return std.ascii.isAlpha(token[0]);
+    return std.ascii.isAlphabetic(token[0]);
 }
 
 fn skipSpaces(self: *Tokenizer) void {
