@@ -31,7 +31,7 @@ pub fn deinit(self: *Calculator) void {
 }
 
 fn evalPostfix(self: *Calculator, tokens: [][]const u8) !f128 {
-    var stack: std.ArrayListUnmanaged(f128) = .empty;
+    var stack: std.ArrayList(f128) = .empty;
     defer stack.deinit(self.allocator);
 
     for (tokens) |token| {
@@ -68,10 +68,10 @@ fn peek(stack: std.ArrayList([]const u8)) []const u8 {
 pub fn eval(self: *Calculator, expr: []const u8) !f128 {
     // Here we use the shunting-yard algorithm to convert the infix expression
     // to postfix notation. We then evaluate the postfix expression.
-    var stack: std.ArrayListUnmanaged([]const u8) = .empty;
+    var stack: std.ArrayList([]const u8) = .empty;
     defer stack.deinit(self.allocator);
 
-    var postfix: std.ArrayListUnmanaged([]const u8) = .empty;
+    var postfix: std.ArrayList([]const u8) = .empty;
     defer postfix.deinit(self.allocator);
 
     var it = Tokenizer.init(expr);
